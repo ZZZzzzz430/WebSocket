@@ -1,0 +1,153 @@
+# 学习路线大纲
+
+接下来辅助学习这个项目的方式，核心是：**先理解源码和调用链，再小步调试和测试，最后再考虑功能扩展和优化**。
+
+## 1. 先确认项目能稳定跑起来
+
+- 熟悉 Debug 构建命令：
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+```
+
+- 运行当前 EchoServer：
+
+```bash
+./bin/main
+```
+
+- 使用 `nc` 测试回显：
+
+```bash
+nc 127.0.0.1 8080
+```
+
+- 理解生成目录：
+  - `build/`：CMake 构建目录
+  - `bin/`：可执行文件目录
+  - `lib/`：生成的动态库目录
+
+## 2. 优先讲清楚 Reactor 主干
+
+先从目前最容易卡住的“回调机制”入手：
+
+- `EventLoop`：事件循环
+- `Channel`：封装 fd 和事件回调
+- `Poller / EPollPoller`：封装 `epoll_wait`
+
+核心调用链：
+
+```text
+loop.loop()
+  -> EPollPoller::poll()
+  -> epoll_wait()
+  -> activeChannels
+  -> Channel::handleEvent()
+  -> readCallback_ / writeCallback_ / closeCallback_
+```
+
+需要重点理解：
+
+- `epoll_wait` 只告诉程序“哪个 fd 有事件”
+- `Channel` 负责把 fd 事件转换成对应回调
+- `EventLoop` 负责不断等待事件并分发事件
+- 用户层业务逻辑最终通过回调函数接入网络库
+
+## 3. 结合 GDB 参与式调试
+
+学习方式不是只看解释，而是带着断点观察程序怎么走。
+
+推荐断点：
+
+```gdb
+break main
+break EventLoop::loop
+break EPollPoller::poll
+break Acceptor::handleRead
+break TcpServer::newConnection
+break TcpConnection::handleRead
+break EchoServer::onMessage
+run
+```
+
+调试流程：
+
+1. 启动服务端，先停在 `main` 或 `EventLoop::loop`
+2. 另开终端执行：
+
+```bash
+nc 127.0.0.1 8080
+```
+
+3. 观察新连接是否进入 `Acceptor::handleRead`
+4. 输入消息，观察是否进入 `TcpConnection::handleRead`
+5. 继续跟进 `EchoServer::onMessage`
+6. 看消息如何被 `send()` 回写给客户端
+
+## 4. 按模块逐步拆解
+
+建议学习顺序：
+
+1. Reactor 主干：`EventLoop / Channel / Poller / EPollPoller`
+2. 连接建立：`Socket / InetAddress / Acceptor / TcpServer`
+3. 连接读写：`TcpConnection / Buffer / Callbacks / main.cc`
+4. 多线程模型：`EventLoopThread / EventLoopThreadPool / Thread`
+5. 定时器：`Timer / TimerQueue / Timestamp`
+6. 日志系统：`Logger / AsyncLogging / LogFile / LogStream`
+7. 内存池和 LFU：`memoryPool / LFU / KICachePolicy`
+8. 项目优化：测试、CMake 现代化、README/笔记完善、后续 HTTP 或 WebSocket 扩展
+
+## 5. 每个模块整理成学习笔记
+
+后续可以继续在 `notes/` 目录下拆分笔记，例如：
+
+```text
+notes/
+├── 00-build-and-run.md
+├── 01-reactor-eventloop-channel.md
+├── 02-acceptor-tcpserver.md
+├── 03-tcpconnection-buffer.md
+├── 04-thread-model.md
+├── 05-timer.md
+├── 06-logging.md
+└── 07-memorypool-lfu.md
+```
+
+每个模块的笔记建议按下面结构整理：
+
+```text
+1. 这个模块解决什么问题
+2. 关键类/文件
+3. 核心数据成员
+4. 核心函数调用链
+5. 结合一条请求的完整流程
+6. 容易出错/面试常问点
+7. 建议亲手做的小练习
+```
+
+## 6. 修改代码要小步来
+
+后续如果需要改代码，原则是每次只动一个点，并说明：
+
+- 为什么改
+- 改了哪些文件
+- 怎么编译
+- 怎么测试
+- 这个点面试时怎么讲
+
+优先保证：
+
+- 能调试
+- 能测试
+- 能理解调用链
+- 尽量保留原项目结构
+
+## 7. 阶段性目标
+
+最终目标是做到三件事：
+
+1. 读懂项目源码
+2. 能自己通过 GDB 和测试验证代码行为
+3. 能在面试中把 Reactor、epoll、回调机制、连接管理和线程模型讲清楚
+

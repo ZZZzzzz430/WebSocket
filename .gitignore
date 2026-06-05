@@ -1,0 +1,36 @@
+# CMake build files
+build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+compile_commands.json
+
+# Binary output
+bin/
+*.out
+*.exe
+
+# Object and library files
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+
+# Logs
+log/
+*.log
+
+# Editor / OS files
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# AppImage / local tools
+*.appimage
+*.AppImage
+nvim-linux-x86_64.appimage
